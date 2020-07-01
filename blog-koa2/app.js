@@ -6,37 +6,37 @@ const onerror = require("koa-onerror");
 const bodyparser = require("koa-bodyparser");
 const logger = require("koa-logger");
 const Moment = require("moment");
-const serverRoute = require('./routes/server');
-const conf = require('./config');
-const path = require('path');
+const serverRoute = require("./routes/server");
+const conf = require("./config");
+const path = require("path");
+
+const session = require('koa-generic-session');
+const redisStore = require('koa-redis');
+const { REDIS_CONF } = require('./conf/db');
 
 const index = require("./routes/index");
 const users = require("./routes/users");
+
+const blog = require("./routes/blog");
+
+
+
 global.USER_DATA = {};
 
 // error handler
 onerror(app);
 
-// app.use((ctx, next) => {
-//   console.log("我是第一个");
-//   next();
-//   console.log('我是第三个');
-// });
-// app.use((ctx, next) => {
-//   next();
-//   console.log("我是第二个");
-// });
-
-// middlewares  格式转换，方便处理数据
 app.use(
   bodyparser({
     enableTypes: ["json", "form", "text"],
   })
 );
 app.use(json());
-app.use(logger(() => {
-  console.log(Moment().format('YYYY-MM-DD HH:mm:ss'))
-}));
+app.use(
+  logger(() => {
+    console.log(Moment().format("YYYY-MM-DD HH:mm:ss"));
+  })
+);
 app.use(require("koa-static")(__dirname + "/public"));
 
 app.use(
@@ -53,26 +53,33 @@ app.use(async (ctx, next) => {
   console.log(`${ctx.method} ${ctx.url} - ${ms}ms`);
 });
 
-// 静态资源服务器,静态资源服务器需要自己设置路由
-app.use( async (ctx, next) => {
-  const filePath = path.join(conf.root,ctx.url);
- 
-  // 
-  await next();
-  // 静态资源服务器
-  // await serverRoute(ctx, next, filePath);
-})
+// redis  
 
-// 模拟各种中间件
+app.keys = ['keys', 'keykeys'];
+app.use(session({
+   // 配置cookie
+  cookie: {
+    path: '/',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000
+  },
+  // 配置redis
+  store: redisStore({
+    all: `${ REDIS_CONF.host }:${ REDIS_CONF.port }`
+  })
+}));
+
+
 
 // routes
 app.use(index.routes(), index.allowedMethods());
-// app.use(users.routes(), users.allowedMethods());
+app.use(users.routes(), users.allowedMethods());
+app.use(blog.routes(), blog.allowedMethods());
 
 // error-handling
 app.on("error", (err, ctx) => {
   console.error("server error", err, ctx);
-  ctx.body = 'not find';
+  ctx.body = "not find";
 });
 
 module.exports = app;
